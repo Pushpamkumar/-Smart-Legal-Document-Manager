@@ -49,7 +49,7 @@ app/
 - `models/`: normalized relational schema with indexes and constraints
 - `schemas/`: request and response contracts using Pydantic
 - `utils/`: reusable diff and similarity helpers
-- `core/`: config and logging
+- `core/`: config, logging, and centralized exception handling
 
 ## Database Schema
 
@@ -221,6 +221,7 @@ The API returns immediately while notification persistence runs in the backgroun
 - optimistic version validation reduces concurrent update conflicts
 - indexes and foreign keys protect lookup performance and referential integrity
 - response models and request validation improve API correctness
+- centralized exception handlers keep error responses consistent
 
 ## Running the Project
 
