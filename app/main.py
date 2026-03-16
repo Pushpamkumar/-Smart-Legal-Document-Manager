@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 import app.models  # noqa: F401
 from app.core.logging import configure_logging
+from app.core.exceptions import register_exception_handlers
 from app.database import Base, engine
 from app.routes.document_routes import router as document_router
 
@@ -15,6 +16,7 @@ app = FastAPI(
     description="Backend service for legal document versioning, diffing, and notifications.",
 )
 
+register_exception_handlers(app)
 app.include_router(document_router)
 
 
