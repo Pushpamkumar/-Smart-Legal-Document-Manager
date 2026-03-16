@@ -20,7 +20,7 @@ class Document(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
     created_by: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
-    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     versions = relationship("DocumentVersion", back_populates="document", cascade="save-update, merge")
     creator = relationship("User", back_populates="documents")
