@@ -254,6 +254,201 @@ uvicorn app.main:app --reload
 pytest
 ```
 
+## User Guide
+
+Open Swagger UI at `http://127.0.0.1:8000/docs` and test the APIs in the following order.
+
+### 1. Create a document
+
+Use `POST /documents`
+
+```json
+{
+  "title": "Lease Agreement",
+  "content": "Clause 1: Rent must be paid before the 5th of every month.\nClause 2: Security deposit is two months rent.\nClause 3: Term of lease is 12 months.",
+  "author_name": "Riya Sharma",
+  "author_email": "riya@example.com"
+}
+```
+
+Verify:
+
+- response code is `201`
+- a `document_id` is returned
+- `latest_version.version_number` is `1`
+
+This confirms the system creates document metadata and stores the initial content as version `v1`.
+
+### 2. Verify version history
+
+Use `GET /documents/{document_id}/versions`
+
+Example:
+
+- `document_id = 4`
+- `page = 1`
+- `page_size = 10`
+
+Verify:
+
+- `total_items = 1`
+- only version `1` is present
+
+This confirms the initial version history is stored correctly.
+
+### 3. Update only document metadata
+
+Use `PUT /documents/{document_id}/title`
+
+```json
+{
+  "title": "Lease Agreement - Mumbai Office"
+}
+```
+
+Verify:
+
+- the title is updated
+- calling `GET /documents/{document_id}/versions` still shows only one version
+
+This confirms metadata updates do not create unnecessary content versions.
+
+### 4. Create a new content version
+
+Use `PUT /documents/{document_id}/content`
+
+```json
+{
+  "content": "Clause 1: Rent must be paid before the 10th of every month.\nClause 2: Security deposit is three months rent.\nClause 3: Term of lease is 24 months.\nClause 4: Maintenance charges will be shared equally.",
+  "created_by_email": "riya@example.com",
+  "base_version_number": 1
+}
+```
+
+Verify:
+
+- `version_created = true`
+- returned version number is `2`
+
+This confirms old versions are preserved and new versions are appended sequentially.
+
+### 5. Validate stale update protection
+
+Repeat the same content update but intentionally use an old base version:
+
+```json
+{
+  "content": "Clause 1: Rent must be paid before the 10th of every month.\nClause 2: Security deposit is three months rent.\nClause 3: Term of lease is 24 months.\nClause 4: Maintenance charges will be shared equally.",
+  "created_by_email": "riya@example.com",
+  "base_version_number": 1
+}
+```
+
+Expected:
+
+- response code `409 Conflict`
+- message indicates the latest version is `v2`
+
+This confirms optimistic version validation is working and stale edits are rejected safely.
+
+### 6. Validate identical-content handling
+
+Use `PUT /documents/{document_id}/content` again with the exact same content, but with the current version:
+
+```json
+{
+  "content": "Clause 1: Rent must be paid before the 10th of every month.\nClause 2: Security deposit is three months rent.\nClause 3: Term of lease is 24 months.\nClause 4: Maintenance charges will be shared equally.",
+  "created_by_email": "riya@example.com",
+  "base_version_number": 2
+}
+```
+
+Verify:
+
+- `version_created = false`
+- response message says no new version was created
+
+This confirms identical uploads do not create duplicate versions.
+
+### 7. Validate whitespace-only change handling
+
+Use `PUT /documents/{document_id}/content`
+
+```json
+{
+  "content": "Clause 1: Rent must be paid before the 10th of every month. \nClause 2:   Security deposit is three months rent.\nClause 3: Term of lease is 24 months.\nClause 4: Maintenance charges will be shared equally.",
+  "created_by_email": "riya@example.com",
+  "base_version_number": 2
+}
+```
+
+Verify:
+
+- `version_created = false`
+
+This confirms whitespace-only or formatting-only changes are ignored and do not pollute version history.
+
+### 8. Compare two versions
+
+Use `GET /documents/{document_id}/compare?v1=1&v2=2`
+
+Verify:
+
+- `modified` shows:
+  - rent due date changed from 5th to 10th
+  - security deposit changed from two months to three months
+  - lease term changed from 12 months to 24 months
+- `added` shows:
+  - `Clause 4: Maintenance charges will be shared equally.`
+
+This confirms the comparison output is structured and readable for a legal reviewer.
+
+### 9. Delete a single version
+
+Use `DELETE /documents/{document_id}/versions/{version_number}`
+
+Example:
+
+- `document_id = 4`
+- `version_number = 1`
+
+Verify:
+
+- delete is successful
+- version listing no longer shows version `1`
+
+This confirms version-level soft deletion works.
+
+### 10. Delete an entire document
+
+Use `DELETE /documents/{document_id}`
+
+Example:
+
+- `document_id = 4`
+
+Verify:
+
+- delete is successful
+- the document is no longer returned as active data
+
+This confirms document-level soft deletion works.
+
+## Comparison Logic Explanation
+
+The comparison feature uses Python's `difflib.SequenceMatcher` on document content split line by line. It compares two stored versions and categorizes changes into `added`, `removed`, and `modified`.
+
+For replaced lines, the API returns a clear `before` and `after` structure instead of a raw developer-style diff. This makes the output easier for lawyers to review because it focuses on clause-level meaning rather than low-level text noise.
+
+## Product-Minded Engineering Notes
+
+- content is stored only in `DocumentVersion`, preserving immutable history
+- duplicate versions are prevented for identical or formatting-only changes
+- metadata changes do not pollute content history
+- transactions reduce risk of partial writes during failures
+- stale updates are rejected using version validation
+- comparison output is structured for lawyer readability, not just technical correctness
+
 ## Notes and Tradeoffs
 
 - SQLite is used for simplicity in a take-home setting; the schema is compatible with migration to PostgreSQL
