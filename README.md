@@ -248,6 +248,12 @@ uvicorn app.main:app --reload
 - Swagger UI: `http://127.0.0.1:8000/docs`
 - ReDoc: `http://127.0.0.1:8000/redoc`
 
+## Running Tests
+
+```bash
+pytest
+```
+
 ## Notes and Tradeoffs
 
 - SQLite is used for simplicity in a take-home setting; the schema is compatible with migration to PostgreSQL
